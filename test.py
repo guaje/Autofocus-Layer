@@ -1,26 +1,25 @@
-import torch
-import torch.nn as nn
+import argparse
+import nibabel as nib
 import numpy as np
+import os
+import SimpleITK as sitk
+import torch
+import torch.backends.cudnn as cudnn
+import torch.nn as nn
+
+from dataset import ValDataset
+from distutils.version import LooseVersion
 from models import ModelBuilder
 from torch.autograd import Variable
-import torch.optim as optim
-import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
-import os
-import random
-import nibabel as nib
-from utils import AverageMeter
-from distutils.version import LooseVersion
-import argparse
-from dataset import ValDataset
-import SimpleITK as sitk 
+
 
 # save prediction results in the format of online submission
 def visualize_result(name, pred, args):
     _, name1, _, name2 = name.split("/")
     _, _, _, _, _, name3, _ = name2.split(".")
     pred = sitk.GetImageFromArray(pred)
-    sitk.WriteImage(pred, args.result + "/VSD"+"."+ str(name1) + '.'+ str(name3)+ '.mha')
+    sitk.WriteImage(pred, args.result + "/VSD" + "." + str(name1) + '.' + str(name3) + '.mha')
 
 
 # compute the number of segments of  the test images
@@ -38,15 +37,15 @@ def segment(image, mask, label, args):
     padding_image_shape = [num_segments[i] * args.center_size[i] + margin[i] for i in range(3)]  
     
     # start_index is corresponding to the location in the new padding images
-    start_index = [limit[i][0] - int(margin[i]/2) for i in range(3)]
+    start_index = [limit[i][0] - int(margin[i] / 2) for i in range(3)]
     start_index = [int(-index) if index < 0 else 0 for index in start_index]
     
     # start and end is corresponding to the location in the original images
-    start = [int(max(limit[i][0] - int(margin[i]/2), 0)) for i in range(3)]
+    start = [int(max(limit[i][0] - int(margin[i] / 2), 0)) for i in range(3)]
     end = [int(min(start[i] + padding_image_shape[i], mask.shape[i])) for i in range(3)]
 
     # compute the end_index corresponding to the new padding images
-    end_index =[int(start_index[i] + end[i] - start[i]) for i in range(3)]
+    end_index = [int(start_index[i] + end[i] - start[i]) for i in range(3)]
       
     # initialize the padding images
     size = [start_index[i] if start_index[i] > 0 and end[i] < mask.shape[i] else 0 for i in range(3)]
@@ -59,36 +58,41 @@ def segment(image, mask, label, args):
     image_pad = np.zeros(padding_image_shape) 
        
     # assign the original images to the padding images
-    image_pad[:, start_index[0] : end_index[0], start_index[1] : end_index[1], start_index[2] : end_index[2]] = image[:, start[0]: end[0], start[1]:end[1], start[2]:end[2]]
-    label_pad[start_index[0] : end_index[0], start_index[1] : end_index[1], start_index[2] : end_index[2]] = label[start[0]: end[0], start[1]:end[1], start[2]:end[2]]
-    mask_pad[start_index[0] : end_index[0], start_index[1] : end_index[1], start_index[2] : end_index[2]] = mask[start[0]: end[0], start[1]:end[1], start[2]:end[2]]
+    image_pad[:, start_index[0]: end_index[0], start_index[1]: end_index[1], start_index[2]: end_index[2]] = \
+        image[:, start[0]: end[0], start[1]: end[1], start[2]: end[2]]
+    label_pad[start_index[0]: end_index[0], start_index[1]: end_index[1], start_index[2]: end_index[2]] = \
+        label[start[0]: end[0], start[1]: end[1], start[2]: end[2]]
+    mask_pad[start_index[0]: end_index[0], start_index[1]: end_index[1], start_index[2]: end_index[2]] = \
+        mask[start[0]: end[0], start[1]: end[1], start[2]: end[2]]
     return image_pad, mask_pad, label_pad, num_segments, (start_index, end_index), (start, end)
                 
+
 def accuracy(pred, mask, label):
     # columns in score is (# pred, # label, pred and label)
-    score = np.zeros([3,3])
+    score = np.zeros([3, 3])
 
     # compute Enhance score (label==4) in the first line
-    score[0,0] = np.count_nonzero(pred * mask == 4)
-    score[0,1] = np.count_nonzero(label == 4)
-    score[0,2] = np.count_nonzero(pred * mask * label == 16)
+    score[0, 0] = np.count_nonzero(pred * mask == 4)
+    score[0, 1] = np.count_nonzero(label == 4)
+    score[0, 2] = np.count_nonzero(pred * mask * label == 16)
     
     # compute Core score (label == 1,3,4) in the second line
     pred[pred > 2] = 1
     label[label > 2] = 1
-    score[1,0] = np.count_nonzero(pred * mask == 1)
-    score[1,1] = np.count_nonzero(label == 1)
-    score[1,2] = np.count_nonzero(pred * mask * label == 1)
+    score[1, 0] = np.count_nonzero(pred * mask == 1)
+    score[1, 1] = np.count_nonzero(label == 1)
+    score[1, 2] = np.count_nonzero(pred * mask * label == 1)
     
     # compute Whole score (all labels) in the third line
     pred[pred > 1] = 1
     label[label > 1] = 1
-    score[2,0] = np.count_nonzero(pred * mask == 1)
-    score[2,1] = np.count_nonzero(label == 1)
-    score[2,2] = np.count_nonzero(pred * mask * label == 1)
+    score[2, 0] = np.count_nonzero(pred * mask == 1)
+    score[2, 1] = np.count_nonzero(label == 1)
+    score[2, 2] = np.count_nonzero(pred * mask * label == 1)
     return score
     
-def test(test_loader, model, num_segments, args):   
+
+def test(test_loader, model, num_segments, args):
     # switch to evaluate mode
     model.eval()
     
@@ -115,7 +119,7 @@ def test(test_loader, model, num_segments, args):
             # The dimension of out should be in the dimension of B,C,H,W,D
             out = model(image)
             out_size = out.size()[2:]      
-            out = out.permute(0,2,3,4,1).contiguous().cuda()    
+            out = out.permute(0, 2, 3, 4, 1).contiguous().cuda()
                 
             out_data = (out.data).cpu().numpy()
            
@@ -132,12 +136,13 @@ def test(test_loader, model, num_segments, args):
             mask = mask.contiguous().view(-1)
         
         for j in range(num_segments[0]):
-            pred_seg[j*h_c:(j+1)*h_c, i*d_c: (i+1)*d_c, :, :] = out_data[j, :]    
+            pred_seg[j * h_c: (j + 1) * h_c, i * d_c: (i + 1) * d_c, :, :] = out_data[j, :]
 
         # compute the dice score
         score += accuracy(prediction.data.cpu().numpy(), mask.data.cpu().numpy(), label.data.cpu().numpy())    
 
     return score, pred_seg
+
 
 def main(args):
     # import network architecture
@@ -165,7 +170,7 @@ def main(args):
     # initialization      
     num_ignore = 0
     margin = [args.crop_size[k] - args.center_size[k] for k in range(3)]
-    num_images = int(len(test_dir)/args.num_input)
+    num_images = int(len(test_dir) / args.num_input)
     dice_score = np.zeros([num_images, 3]).astype(float)
 
     for i in range(num_images):
@@ -193,20 +198,22 @@ def main(args):
         labels_shape = list(labels.shape)
         labels_shape.append(args.num_classes)
         pred = np.zeros(labels_shape)
-        pred[:,:,:,0] = 1
+        pred[:, :, :, 0] = 1
             
         # initialize the prediction for a small segmentation as background
         pad_shape = [int(num_segments[k] * args.center_size[k]) for k in range(3)]
         pad_shape.append(args.num_classes)
         pred_pad = np.zeros(pad_shape)  
-        pred_pad[:,:,:,0] = 1 
+        pred_pad[:, :, :, 0] = 1
 
         # score_per_image stores the sum of each image
         score_per_image = np.zeros([3, 3])
         # iterate over the z dimension
         for idz in range(num_segments[2]):
             tf = ValDataset(image_pad, label_pad, mask_pad, num_segments, idz, args)
-            test_loader = DataLoader(tf, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers, pin_memory=False)
+            #test_loader = DataLoader(tf, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers,
+                                     #in_memory=False)
+            test_loader = DataLoader(tf, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
             score_seg, pred_seg = test(test_loader, model, num_segments, args)
             pred_pad[:, :, idz*args.center_size[2]:(idz+1)*args.center_size[2], :] = pred_seg        
             score_per_image += score_seg
@@ -214,21 +221,26 @@ def main(args):
         # decide the start and end point in the original image
         for k in range(3):
             if index[0][k] == 0:
-                index[0][k] = int(margin[k]/2 - padding_index[0][k])
+                index[0][k] = int(margin[k] / 2 - padding_index[0][k])
             else:
-                index[0][k] = int(margin[k]/2 + index[0][k])
+                index[0][k] = int(margin[k] / 2 + index[0][k])
 
             index[1][k] = int(min(index[0][k] + num_segments[k] * args.center_size[k], labels.shape[k]))
 
         dist = [index[1][k] - index[0][k] for k in range(3)]
-        pred[index[0][0]:index[1][0], index[0][1]:index[1][1], index[0][2]:index[1][2]] = pred_pad[:dist[0], :dist[1], :dist[2]]
+        pred[index[0][0]: index[1][0], index[0][1]: index[1][1], index[0][2]: index[1][2]] = pred_pad[:dist[0],
+                                                                                             :dist[1], :dist[2]]
             
-        if np.sum(score_per_image[0,:]) == 0 or np.sum(score_per_image[1,:]) == 0 or np.sum(score_per_image[2,:]) == 0:
+        if np.sum(score_per_image[0, :]) == 0 or np.sum(score_per_image[1, :]) == 0 or \
+                np.sum(score_per_image[2, :]) == 0:
             num_ignore += 1
             continue 
         # compute the Enhance, Core and Whole dice score
-        dice_score_per = [2 * np.sum(score_per_image[k,2]) / (np.sum(score_per_image[k,0]) + np.sum(score_per_image[k,1])) for k in range(3)]   
-        print('Image: %d, Enhance score: %.4f, Core score: %.4f, Whole score: %.4f' % (i, dice_score_per[0], dice_score_per[1], dice_score_per[2]))           
+        dice_score_per = [2 * np.sum(score_per_image[k, 2]) / (np.sum(score_per_image[k, 0]) +
+                                                               np.sum(score_per_image[k, 1])) for k in range(3)]
+        print('Image: %d, Enhance score: %.4f, Core score: %.4f, Whole score: %.4f' % (i, dice_score_per[0],
+                                                                                       dice_score_per[1],
+                                                                                       dice_score_per[2]))
         
         dice_score[i, :] = dice_score_per
 
@@ -238,13 +250,18 @@ def main(args):
             visualize_result(name, vis, args)
         
     count_image = num_images - num_ignore
-    dice_score = dice_score[:count_image,:]
+    dice_score = dice_score[:count_image, :]
     mean_dice = np.mean(dice_score, axis=0)
     std_dice = np.std(dice_score, axis=0)
     print('Evalution Done!')
-    print('Enhance score: %.4f, Core score: %.4f, Whole score: %.4f, Mean Dice score: %.4f' % (mean_dice[0], mean_dice[1], mean_dice[2], np.mean(mean_dice)))
-    print('Enhance std: %.4f, Core std: %.4f, Whole std: %.4f, Mean Std: %.4f' % (std_dice[0], std_dice[1], std_dice[2], np.mean(std_dice)))                      
+    print('Enhance score: %.4f, Core score: %.4f, Whole score: %.4f, Mean Dice score: %.4f' % (mean_dice[0],
+                                                                                               mean_dice[1],
+                                                                                               mean_dice[2],
+                                                                                               np.mean(mean_dice)))
+    print('Enhance std: %.4f, Core std: %.4f, Whole std: %.4f, Mean Std: %.4f' % (std_dice[0], std_dice[1], std_dice[2],
+                                                                                  np.mean(std_dice)))
     
+
 if __name__ == '__main__':
     assert LooseVersion(torch.__version__) >= LooseVersion('0.3.0'), \
         'PyTorch>=0.3.0 is required'
@@ -252,10 +269,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # Model related arguments
     parser.add_argument('--id', default='AFN1', 
-                        help='a name for identitying the model. Choose from the following options: AFN1-6, Basic, ASPP_c, ASPP_s.')
-    parser.add_argument('--padding_list', default=[0,4,8,12], nargs='+', type=int,
+                        help='a name for identitying the model. Choose from the following options: '
+                             'AFN1-6, Basic, ASPP_c, ASPP_s.')
+    parser.add_argument('--padding_list', default=[0, 4, 8, 12], nargs='+', type=int,
                         help='list of the paddings in the parallel convolutions')
-    parser.add_argument('--dilation_list', default=[2,6,10,14], nargs='+', type=int,
+    parser.add_argument('--dilation_list', default=[2, 6, 10, 14], nargs='+', type=int,
                         help='list of the dilation rates in the parallel convolutions')
     parser.add_argument('--num_branches', default=4, type=int,
                         help='the number of parallel convolutions in autofocus layer')
@@ -269,9 +287,9 @@ if __name__ == '__main__':
                         help='folder to output checkpoints')
 
     # Data related arguments
-    parser.add_argument('--crop_size', default=[75,75,75], nargs='+', type=int,
+    parser.add_argument('--crop_size', default=[75, 75, 75], nargs='+', type=int,
                         help='crop size of the input image (int or list)')
-    parser.add_argument('--center_size', default=[47,47,47], nargs='+', type=int,
+    parser.add_argument('--center_size', default=[47, 47, 47], nargs='+', type=int,
                         help='the corresponding output size of the input image (int or list)')
     parser.add_argument('--num_classes', default=5, type=int,
                         help='number of classes')
