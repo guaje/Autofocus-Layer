@@ -4,3 +4,4 @@ __MACOSX/
 __pycache__/
 result/
 saved_models/
+.DS_Store
