@@ -1,13 +1,11 @@
-import torch.nn as nn 
-import math
-import torch.utils.model_zoo as model_zoo
 import torch
-import numpy as np
-from torch.autograd import Variable
+import torch.nn as nn
 import torch.nn.functional as F
 
-class ModelBuilder():
-    def build_net(self, arch='AFN1', num_input=4, num_classes=5, num_branches=4, padding_list=[0,4,8,12], dilation_list=[2,6,10,14]):
+
+class ModelBuilder:
+    def build_net(self, arch='AFN1', num_input=4, num_classes=5, num_branches=4, padding_list=[0, 4, 8, 12],
+                  dilation_list=[2, 6, 10, 14]):
         # parameters in the architecture
         channels = [num_input-1, 30, 30, 40, 40, 40, 40, 50, 50, num_classes]       
         kernel_size = 3
@@ -42,15 +40,16 @@ class ModelBuilder():
         network = AFN(blocks, padding_list, dilation_list, channels, kernel_size, num_branches)
         return network
 
+
 class BasicBlock(nn.Module):
     def __init__(self, inplanes1, outplanes1, outplanes2, kernel=3, downsample=None):
         super(BasicBlock, self).__init__()
-        self.conv1 =nn.Conv3d(inplanes1, outplanes1, kernel_size=kernel,dilation=2)
+        self.conv1 = nn.Conv3d(inplanes1, outplanes1, kernel_size=kernel,dilation=2)
         self.bn1 = nn.BatchNorm3d(outplanes1)
-        self.conv2 =nn.Conv3d(outplanes1, outplanes2, kernel_size=kernel, dilation=2)
+        self.conv2 = nn.Conv3d(outplanes1, outplanes2, kernel_size=kernel, dilation=2)
         self.bn2 = nn.BatchNorm3d(outplanes2)
         self.relu = nn.ReLU(inplace=True)
-        if inplanes1==outplanes2:            
+        if inplanes1 == outplanes2:
             self.downsample = downsample
         else:
             self.downsample = nn.Sequential(nn.Conv3d(inplanes1, outplanes2, kernel_size=1), nn.BatchNorm3d(outplanes2))
@@ -62,8 +61,8 @@ class BasicBlock(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
     
-    def forward(self,x):
-        residual = x[:,:, 4:-4, 4:-4, 4:-4]
+    def forward(self, x):
+        residual = x[:, :, 4: -4, 4: -4, 4: -4]
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -78,13 +77,14 @@ class BasicBlock(nn.Module):
         x = self.relu(x)
         return x
     
+
 class Autofocus_single(nn.Module):
     def __init__(self, inplanes1, outplanes1, outplanes2, padding_list, dilation_list, num_branches, kernel=3):
         super(Autofocus_single, self).__init__()
         self.padding_list = padding_list
         self.dilation_list = dilation_list
         self.num_branches = num_branches
-        self.conv1 =nn.Conv3d(inplanes1, outplanes1, kernel_size=kernel, dilation=2)
+        self.conv1 = nn.Conv3d(inplanes1, outplanes1, kernel_size=kernel, dilation=2)
         self.bn1 = nn.BatchNorm3d(outplanes1)
           
         self.bn_list2 = nn.ModuleList()

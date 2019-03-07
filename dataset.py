@@ -1,7 +1,9 @@
 from torch.utils.data import Dataset
+
+import nibabel as nib
 import numpy as np
 import random
-import nibabel as nib
+
 
 class TrainDataset(Dataset):
     def __init__(self, root_dir, args):   

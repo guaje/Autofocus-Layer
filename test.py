@@ -1,17 +1,16 @@
+from dataset import ValDataset
+from distutils.version import LooseVersion
+from models import ModelBuilder
+from torch.autograd import Variable
+from torch.utils.data import DataLoader
+
 import argparse
 import nibabel as nib
 import numpy as np
 import os
 import SimpleITK as sitk
 import torch
-import torch.backends.cudnn as cudnn
 import torch.nn as nn
-
-from dataset import ValDataset
-from distutils.version import LooseVersion
-from models import ModelBuilder
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
 
 
 # save prediction results in the format of online submission
@@ -147,37 +146,33 @@ def test(test_loader, model, num_segments, args):
 def main(args):
     # import network architecture
     builder = ModelBuilder()
-    model = builder.build_net(
-            arch=args.id, 
-            num_input=args.num_input, 
-            num_classes=args.num_classes, 
-            num_branches=args.num_branches,
-            padding_list=args.padding_list, 
-            dilation_list=args.dilation_list)
-    model = torch.nn.DataParallel(model, device_ids=list(range(args.num_gpus))).cuda()
-    cudnn.benchmark = True
+    model = builder.build_net(arch=args.id, num_input=args.num_input, num_classes=args.num_classes,
+                              num_branches=args.num_branches, padding_list=args.padding_list,
+                              dilation_list=args.dilation_list)
+    model = nn.DataParallel(model, device_ids=list(range(args.num_gpus))).cuda()
+    torch.backends.cudnn.benchmark = True
     
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> Loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume)
             state_dict = checkpoint['state_dict']
-            model.load_state_dict(state_dict)           
+            model.load_state_dict(state_dict)
             print("=> Loaded checkpoint (epoch {})".format(checkpoint['epoch']))
         else:
-            raise Exception("=> No checkpoint found at '{}'".format(args.resume))         
+            raise Exception("=> No checkpoint found at '{}'".format(args.resume))
     
     # initialization      
     num_ignore = 0
     margin = [args.crop_size[k] - args.center_size[k] for k in range(3)]
     num_images = int(len(test_dir) / args.num_input)
-    dice_score = np.zeros([num_images, 3]).astype(float)
+    dice_score = np.zeros([num_images, 3]).astype(np.float)
 
     for i in range(num_images):
         # load the images, label and mask
         im = []
         for j in range(args.num_input):
-            direct, _ = test_dir[args.num_input * i + j].split("\n")
+            direct, _ = test_dir[args.num_input * i + j].split('\n')
             name = direct
             if j < args.num_input - 1:
                 image = nib.load(args.root_path + direct + '.gz').get_data()
@@ -188,7 +183,7 @@ def main(args):
             else:
                 labels = nib.load(args.root_path + direct + '.gz').get_data()
         
-        images = np.concatenate(im, axis=0).astype(float)
+        images = np.concatenate(im, axis=0).astype(np.float)
 
         # divide the input images input small image segments
         # return the padding input images which can be divided exactly
@@ -215,7 +210,7 @@ def main(args):
                                      #in_memory=False)
             test_loader = DataLoader(tf, batch_size=args.batch_size, shuffle=args.shuffle, num_workers=args.num_workers)
             score_seg, pred_seg = test(test_loader, model, num_segments, args)
-            pred_pad[:, :, idz*args.center_size[2]:(idz+1)*args.center_size[2], :] = pred_seg        
+            pred_pad[:, :, idz * args.center_size[2]: (idz + 1) * args.center_size[2], :] = pred_seg
             score_per_image += score_seg
                 
         # decide the start and end point in the original image
@@ -351,16 +346,3 @@ if __name__ == '__main__':
     # do the test on a series of models
     args.resume = args.ckpt + '/' + str(args.test_epoch) + '_checkpoint.pth.tar'
     main(args)
-
-   
-
-
-
-
-
-
-
-
-
-
-
