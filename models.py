@@ -140,6 +140,7 @@ class Autofocus_single(nn.Module):
         x = self.relu(x)
         return x
    
+
 class Autofocus(nn.Module):
     def __init__(self, inplanes1, outplanes1, outplanes2, padding_list, dilation_list, num_branches, kernel=3):
         super(Autofocus, self).__init__()
@@ -147,14 +148,14 @@ class Autofocus(nn.Module):
         self.dilation_list = dilation_list
         self.num_branches = num_branches
 
-        self.conv1 =nn.Conv3d(inplanes1, outplanes1, kernel_size=kernel, dilation=self.dilation_list[0])
+        self.conv1 = nn.Conv3d(inplanes1, outplanes1, kernel_size=kernel, dilation=self.dilation_list[0])
         self.convatt11 = nn.Conv3d(inplanes1, int(inplanes1/2), kernel_size=kernel)
         self.convatt12 = nn.Conv3d(int(inplanes1/2), self.num_branches, kernel_size=1)
         self.bn_list1 = nn.ModuleList()
         for i in range(self.num_branches):
             self.bn_list1.append(nn.BatchNorm3d(outplanes1))
             
-        self.conv2 =nn.Conv3d(outplanes1, outplanes2, kernel_size=kernel, dilation=self.dilation_list[0])
+        self.conv2 = nn.Conv3d(outplanes1, outplanes2, kernel_size=kernel, dilation=self.dilation_list[0])
         self.convatt21 = nn.Conv3d(outplanes1, int(outplanes1/2), kernel_size=kernel)
         self.convatt22 = nn.Conv3d(int(outplanes1/2), self.num_branches, kernel_size=1)
         self.bn_list2 = nn.ModuleList()
@@ -162,7 +163,7 @@ class Autofocus(nn.Module):
             self.bn_list2.append(nn.BatchNorm3d(outplanes2))
         
         self.relu = nn.ReLU(inplace=True)
-        if inplanes1==outplanes2:            
+        if inplanes1 == outplanes2:
             self.downsample = None
         else:
             self.downsample = nn.Sequential(nn.Conv3d(inplanes1, outplanes2, kernel_size=1), nn.BatchNorm3d(outplanes2))
@@ -175,23 +176,23 @@ class Autofocus(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x):
-        residual = x[:,:, 4:-4, 4:-4, 4:-4]
+        residual = x[:, :, 4:-4, 4:-4, 4:-4]
         # compute attention weights in the first autofocus convolutional layer
         feature = x.detach()
         att = self.relu(self.convatt11(feature))
         att = self.convatt12(att)
         att = F.softmax(att, dim=1)
-        att = att[:,:,1:-1,1:-1,1:-1]
+        att = att[:, :, 1: -1, 1: -1, 1: -1]
 
         # linear combination of different rates
         x1 = self.conv1(x)
         shape = x1.size()
-        x1 = self.bn_list1[0](x1)* att[:,0:1,:,:,:].expand(shape)
+        x1 = self.bn_list1[0](x1) * att[:, 0:1, :, :, :].expand(shape)
         
         for i in range(1, self.num_branches):
             x2 = F.conv3d(x, self.conv1.weight, padding=self.padding_list[i], dilation=self.dilation_list[i])
             x2 = self.bn_list1[i](x2)
-            x1 += x2* att[:,i:(i+1),:,:,:].expand(shape)
+            x1 += x2 * att[:, i: (i + 1), :, :, :].expand(shape)
         
         x = self.relu(x1)
         
@@ -200,17 +201,17 @@ class Autofocus(nn.Module):
         att2 = self.relu(self.convatt21(feature2))
         att2 = self.convatt22(att2)
         att2 = F.softmax(att2, dim=1)
-        att2 = att2[:,:,1:-1,1:-1,1:-1]
+        att2 = att2[:, :, 1: -1, 1: -1, 1: -1]
         
         # linear combination of different rates
         x21 = self.conv2(x)
         shape = x21.size()
-        x21 = self.bn_list2[0](x21)* att2[:,0:1,:,:,:].expand(shape)
+        x21 = self.bn_list2[0](x21) * att2[:, 0: 1, :, :, :].expand(shape)
         
         for i in range(1, self.num_branches):
-            x22 = F.conv3d(x, self.conv2.weight, padding =self.padding_list[i], dilation=self.dilation_list[i])
+            x22 = F.conv3d(x, self.conv2.weight, padding=self.padding_list[i], dilation=self.dilation_list[i])
             x22 = self.bn_list2[i](x22)
-            x21 += x22* att2[:,i:(i+1),:,:,:].expand(shape)
+            x21 += x22 * att2[:, i: (i + 1), :, :, :].expand(shape)
                 
         if self.downsample is not None:
             residual = self.downsample(residual)
@@ -218,6 +219,7 @@ class Autofocus(nn.Module):
         x = x21 + residual
         x = self.relu(x)
         return x
+
 
 class Basic(nn.Module):
     def __init__(self, channels, kernel_size):
@@ -261,6 +263,7 @@ class Basic(nn.Module):
               
         x = self.fc(x)
         return x
+
 
 class ASPP_c(nn.Module):
     def __init__(self, dilation_list, channels, kernel_size, num_branches):
@@ -321,6 +324,7 @@ class ASPP_c(nn.Module):
         out = self.fc9(out)
         return out
 
+
 class ASPP_s(nn.Module):
     def __init__(self, dilation_list, channels, kernel_size, num_branches):
         super(ASPP_s, self).__init__()
@@ -380,6 +384,7 @@ class ASPP_s(nn.Module):
             out += self.last_list[i](out1)
            
         return out
+
 
 class AFN(nn.Module):
     def __init__(self, blocks, padding_list, dilation_list, channels, kernel_size, num_branches):

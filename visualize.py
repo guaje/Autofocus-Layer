@@ -6,13 +6,12 @@ import os
 import SimpleITK as sitk
 
 
-#dname = '/home/jrguajeg/Devel/workshop/dl/Autofocus-Layer'  # Linux
-dname = '/Users/guaj0/Work/PhD/workshop/dl/Autofocus-Layer'  # Mac
+sdir = os.path.abspath(os.path.dirname('__file__'))
 resdir = 'result/AFN6'
 imgdir = 'HGG/brats_tcia_pat118_0001/VSD.Brain.XX.O.MR_T1c.35547'
 
-fname_res = os.path.join(dname, resdir, 'VSD.brats_tcia_pat118_0001.42293.mha')
-fname_img = os.path.join(dname, imgdir, 'VSD.Brain.XX.O.MR_T1c.35547.nii.gz')
+fname_res = os.path.join(sdir, resdir, 'VSD.brats_tcia_pat118_0001.42293.mha')
+fname_img = os.path.join(sdir, imgdir, 'VSD.Brain.XX.O.MR_T1c.35547.nii.gz')
 
 res_img = sitk.ReadImage(fname_res)
 res_mat = sitk.GetArrayViewFromImage(res_img)
