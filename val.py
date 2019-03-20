@@ -14,6 +14,7 @@ from distutils.version import LooseVersion
 import argparse
 from dataset import ValDataset
 
+
 # compute the number of segments of  the validation images
 def segment(image, mask, label, args):
     # find the left, right, bottom, top, forward, backward limit of the mask   
@@ -55,6 +56,7 @@ def segment(image, mask, label, args):
     mask_pad[start_index[0] : end_index[0], start_index[1] : end_index[1], start_index[2] : end_index[2]] = mask[start[0]: end[0], start[1]:end[1], start[2]:end[2]]
     return image_pad, mask_pad, label_pad, num_segments, (start_index, end_index), (start, end)
                 
+
 def accuracy(pred, mask, label):
     # columns in score is (# pred, # label, pred and label)
     score = np.zeros([3,3])
@@ -79,7 +81,8 @@ def accuracy(pred, mask, label):
     score[2,2] = np.count_nonzero(pred * mask * label == 1)
     return score
     
-def val(val_loader, model, num_segments, args):   
+
+def val(val_loader, model, num_segments, args):
     # switch to evaluate mode
     model.eval()
     
@@ -129,6 +132,7 @@ def val(val_loader, model, num_segments, args):
         score += accuracy(prediction.data.cpu().numpy(), mask.data.cpu().numpy(), label.data.cpu().numpy())    
 
     return score, pred_seg
+
 
 def main(args):
     # import network architecture
@@ -324,14 +328,3 @@ if __name__ == '__main__':
         main(args)
 
     print('Best Epoch: %d, Best mean epoch: %.4f' % (args.best_epoch, args.best_mean))
-
-
-
-
-
-
-
-
-
-
-

@@ -35,6 +35,7 @@
 #     def summation(self):
 #         return self.sum
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -51,4 +52,4 @@ class AverageMeter(object):
         self.val = val
         self.sum += val * n
         self.count += n
-        self.avg = self.sum / self.count      
+        self.avg = self.sum / self.count

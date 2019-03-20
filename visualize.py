@@ -44,13 +44,13 @@ y_midpoint = int(np.round(img_shape[1] / 2))
 image_actor_y.display_extent(0, img_shape[0] - 1, y_midpoint, y_midpoint, 0, img_shape[2] - 1)
 
 # Add all the actors to the renderer
-r = window.Renderer()
-r.add(image_actor_z)
-r.add(image_actor_x)
-r.add(image_actor_y)
-r.add(contour_actor)
+scene = window.Scene()
+scene.add(image_actor_z)
+scene.add(image_actor_x)
+scene.add(image_actor_y)
+scene.add(contour_actor)
 
-show_m = window.ShowManager(r, size=(1200, 900))
+show_m = window.ShowManager(scene, size=(1200, 900))
 show_m.initialize()
 
 z_slider = ui.LineSlider2D(min_value=0, max_value=img_shape[2] - 1, initial_value=img_shape[2] / 2,
@@ -137,10 +137,10 @@ panel.add_element(slices_opacity_slider, (0.45, 0.30))
 panel.add_element(contour_opacity_label, (0.05, 0.10))
 panel.add_element(contour_opacity_slider, (0.45, 0.10))
 
-show_m.ren.add(panel)
+show_m.scene.add(panel)
 
 global size
-size = r.GetSize()
+size = scene.GetSize()
 
 
 def win_callback(obj, event):
@@ -154,8 +154,8 @@ def win_callback(obj, event):
 
 show_m.add_window_callback(win_callback)
 
-r.zoom(1.5)
-r.reset_clipping_range()
+scene.zoom(1.5)
+scene.reset_clipping_range()
 
 show_m.render()
 

@@ -14,6 +14,7 @@ from utils import AverageMeter
 from distutils.version import LooseVersion
 import math
 
+
 def train(train_loader, model, criterion, optimizer, epoch, args):
     losses = AverageMeter()
 
@@ -55,10 +56,12 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
       
     print('   * EPOCH {epoch} | Training Loss: {losses.avg:.3f}'.format(epoch=epoch, losses=losses))  
 
-def save_checkpoint(state, epoch, args):   
+
+def save_checkpoint(state, epoch, args):
     filename = args.ckpt + '/' + str(epoch) + '_checkpoint.pth.tar'
     print(filename)
     torch.save(state, filename)
+
 
 def adjust_learning_rate(optimizer, cur_iter, args):
     scale_running_lr = ((1. - float(cur_iter) / args.max_iters) ** args.lr_pow)
@@ -66,6 +69,7 @@ def adjust_learning_rate(optimizer, cur_iter, args):
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = args.running_lr
+
 
 def main(args):
     # import network architecture
@@ -123,6 +127,7 @@ def main(args):
                 save_checkpoint({'epoch': epoch, 'state_dict': model.state_dict(), 'opt_dict': optimizer.state_dict()}, epoch, args)
     
     print("Training Done")  
+
 
 if __name__ == '__main__':
     assert LooseVersion(torch.__version__) >= LooseVersion('0.3.0'), \
